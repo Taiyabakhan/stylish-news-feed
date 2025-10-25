@@ -1,12 +1,159 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState, useEffect } from "react";
+import { Newspaper } from "lucide-react";
+import NewsCard from "@/components/NewsCard";
+import SearchBar from "@/components/SearchBar";
+import CategoryFilter from "@/components/CategoryFilter";
+import LoadingState from "@/components/LoadingState";
+import ErrorState from "@/components/ErrorState";
+import { toast } from "sonner";
+
+interface Article {
+  title: string;
+  description: string;
+  url: string;
+  image: string;
+  publishedAt: string;
+  source: {
+    name: string;
+  };
+}
 
 const Index = () => {
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("general");
+
+  // Using GNews API - you'll need to get your own API key from https://gnews.io/
+  const API_KEY = "YOUR_GNEWS_API_KEY_HERE"; // Replace with actual API key
+  const API_URL = "https://gnews.io/api/v4";
+
+  const fetchNews = async (query?: string, category?: string) => {
+    setLoading(true);
+    setError(false);
+
+    try {
+      let url = `${API_URL}/top-headlines?category=${category || selectedCategory}&lang=en&country=us&max=10&apikey=${API_KEY}`;
+      
+      if (query) {
+        url = `${API_URL}/search?q=${encodeURIComponent(query)}&lang=en&country=us&max=10&apikey=${API_KEY}`;
+      }
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      setArticles(data.articles || []);
+      
+      if (data.articles && data.articles.length === 0) {
+        toast.info("No articles found for your search");
+      }
+    } catch (err) {
+      console.error("Error fetching news:", err);
+      setError(true);
+      toast.error("Failed to fetch news articles");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNews();
+  }, [selectedCategory]);
+
+  const handleSearch = () => {
+    if (searchQuery.trim()) {
+      fetchNews(searchQuery);
+    } else {
+      fetchNews();
+    }
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setSearchQuery("");
+  };
+
+  const handleRetry = () => {
+    fetchNews();
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="gradient-primary text-primary-foreground py-12 mb-8">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Newspaper className="w-10 h-10" />
+            <h1 className="text-4xl md:text-5xl font-bold">NewsHub</h1>
+          </div>
+          <p className="text-center text-lg opacity-90">
+            Stay updated with the latest news from around the world
+          </p>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 pb-12">
+        {/* Search Bar */}
+        <div className="mb-8">
+          <SearchBar 
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSearch={handleSearch}
+          />
+        </div>
+
+        {/* Category Filter */}
+        <div className="mb-12">
+          <CategoryFilter 
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleCategoryChange}
+          />
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <LoadingState />
+        ) : error ? (
+          <ErrorState onRetry={handleRetry} />
+        ) : (
+          <>
+            {articles.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+                {articles.map((article, index) => (
+                  <NewsCard
+                    key={`${article.url}-${index}`}
+                    title={article.title}
+                    description={article.description}
+                    url={article.url}
+                    image={article.image}
+                    source={article.source.name}
+                    publishedAt={article.publishedAt}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground text-lg">
+                  No articles found. Try a different search or category.
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Footer */}
+      <footer className="border-t border-border py-8 mt-12">
+        <div className="container mx-auto px-4 text-center text-muted-foreground">
+          <p>Powered by GNews API • Built with React & Tailwind CSS</p>
+        </div>
+      </footer>
     </div>
   );
 };
